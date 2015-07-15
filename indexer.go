@@ -148,23 +148,27 @@ func (i *Indexer) Reindex(className string) error {
 	}
 	client.TraceOn(log.New(os.Stderr, "[parse api] ", log.LstdFlags))
 	client = client.WithMasterKey(i.masterKey)
-	iter, err := client.NewQueryIter(className, "{}")
+
+	dest := []map[string]interface{}{}
+	iter, err := client.NewQueryClassIter(className, "{}", dest)
 	if err != nil {
 		return err
 	}
+
 	status := &indexStatus{class: className}
 
 	i.status.register(status)
 	defer i.status.unregister(status)
 
-	for o := iter.Next(); o != nil; o = iter.Next() {
-		obj := o.(map[string]interface{})
-		if err := i.index.Index(obj["objectId"].(string), obj); err != nil {
-			log.Println("index error:", err)
-		}
+	for iter.Next() {
+		for _, obj := range dest {
+			if err := i.index.Index(obj["objectId"].(string), obj); err != nil {
+				log.Println("index error:", err)
+			}
 
-		log.Println("index incremented")
-		status.incr()
+			log.Println("index incremented")
+			status.incr()
+		}
 	}
 	return iter.Err()
 }
